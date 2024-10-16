@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"regexp"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
@@ -21,7 +22,7 @@ func main() {
 	initSpotifyClient()
 
 	// Route to get artist information
-	r.Get("/artist/{id}", getArtistHandler)
+	r.With(validateSpotifyID).Get("/artist/{id}", getArtistHandler)
 
 	http.ListenAndServe(":3000", r)
 }
@@ -48,4 +49,16 @@ func getArtistHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(artist)
+}
+
+func validateSpotifyID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		artistID := chi.URLParam(r, "id")
+		validID := regexp.MustCompile(`^[a-zA-Z0-9]{22}$`).MatchString(artistID)
+		if !validID {
+			http.Error(w, "Invalid Spotify ID", http.StatusBadRequest)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
