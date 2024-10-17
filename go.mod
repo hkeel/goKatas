@@ -7,6 +7,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/httprate v0.14.1
 	github.com/go-chi/jwtauth/v5 v5.3.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/zmb3/spotify v1.3.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
 )
