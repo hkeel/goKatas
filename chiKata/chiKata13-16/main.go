@@ -6,25 +6,55 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"github.com/go-chi/cors"
 	"github.com/zmb3/spotify"
 	"golang.org/x/oauth2/clientcredentials"
 )
 
 var spotifyClient spotify.Client
 
+type contextKey string
+
+const apiVersionKey contextKey = "apiVersion"
+
 func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://example.com", "http://localhost:3000"},
+		AllowedMethods:   []string{"GET"},
+		AllowedHeaders:   []string{"Origin", "Content-Type", "Accept"},
+		AllowCredentials: true,
+	}))
 
 	initSpotifyClient()
 
-	// Route to get artist information
-	r.With(validateSpotifyID).Get("/artist/{id}", getArtistHandler)
+	// Version 2
+	r.Route("/v2", func(r chi.Router) {
+		r.Use(apiVersionCtx("v2"))
+		r.With(validateSpotifyID).Get("/artist/{id}", getArtistHandler)
+	})
+
+	// Version 1
+	r.Route("/v1", func(r chi.Router) {
+		r.Use(apiVersionCtx("v1"))
+		r.With(validateSpotifyID).Get("/artist/{id}", getArtistHandler)
+	})
 
 	http.ListenAndServe(":3000", r)
+}
+
+func apiVersionCtx(version string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := context.WithValue(r.Context(), apiVersionKey, version)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 func initSpotifyClient() {
@@ -45,6 +75,12 @@ func getArtistHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Error fetching artist information", http.StatusInternalServerError)
 		return
+	}
+
+	// small test for api versioning
+	version := r.Context().Value(apiVersionKey).(string)
+	if version == "v2" {
+		artist.Name = strings.ToUpper(artist.Name)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
